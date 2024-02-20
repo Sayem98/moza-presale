@@ -8,7 +8,7 @@ class HorizontalSlider extends Component {
   constructor(props, context) {
     super(props, context);
     this.state = {
-      value: 10,
+      value: props.value,
     };
   }
 

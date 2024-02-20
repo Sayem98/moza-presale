@@ -4,57 +4,78 @@ import { Link } from "react-router-dom";
 import Modal from "../components/Modal";
 import Footer from "../components/Footer";
 import { AddIcon } from "../assets";
-
 import HorizontalSlider from "../components/HorizontalSlider";
+import { PER_DOLLAR_PRICE, PER_USDT_TO_BNB } from "../contracts/contract";
+import useContract from "../hooks/useContracts";
+import { useWeb3ModalAccount } from "@web3modal/ethers/react";
+import ClipLoader from "react-spinners/ClipLoader";
+import { toast } from "react-toastify";
+const override = {
+  display: "block",
+  margin: "0 auto",
+  borderColor: "red",
+};
+
 const Main = () => {
   const [open, setOpen] = useState(false);
-  const countdowntime = 1662327598221;
-  const whitelistcountdown = ({ days, hours, minutes, seconds, completed }) => {
-    if (completed) {
-      return (
-        <ul className="app-timer js-app-timer flex">
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-days">0</span>
-            <h3 className="app-timer__title">Days</h3>
-          </li>
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-hours">0</span>
-            <h3 className="app-timer__title">Hours</h3>
-          </li>
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-minutes">0</span>
-            <h3 className="app-timer__title">Minutes</h3>
-          </li>
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-seconds">0</span>
-            <h3 className="app-timer__title">Seconds</h3>
-          </li>
-        </ul>
+  const [paymentType, setPaymentType] = useState("");
+  const [payAmount, setPayAmount] = useState(0);
+  const [receivedAmount, setReceivedAmount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  let [color, setColor] = useState("#ffffff");
+
+  const { address, chainId, isConnected } = useWeb3ModalAccount();
+  const [stat, setStat] = useState({});
+
+  const { buy, getData } = useContract();
+
+  useEffect(() => {
+    const _getData = async () => {
+      const _data = await getData();
+      console.log("data", _data);
+      setStat(_data);
+    };
+    if (isConnected) {
+      _getData();
+    }
+  }, [isConnected]);
+
+  const handlePaymentTypeChnage = (type) => {
+    setPaymentType(type);
+    handlePayAmountChange({ target: { value: payAmount } });
+  };
+
+  const handlePayAmountChange = (e) => {
+    if (Number(e.target.value) <= 0) {
+      return;
+    }
+    // set based on the payment type
+    setPayAmount(Number(e.target.value));
+
+    if (paymentType === "BNB") {
+      setReceivedAmount(
+        Number(e.target.value * PER_DOLLAR_PRICE * PER_USDT_TO_BNB)
       );
+    } else if (paymentType === "USDT" || paymentType === "BUSD") {
+      setReceivedAmount(Number(e.target.value * PER_DOLLAR_PRICE));
     } else {
-      // Render a countdown
-      return (
-        <ul className="app-timer js-app-timer flex">
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-days">{days}</span>
-            <h3 className="app-timer__title">Days</h3>
-          </li>
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-hours">{hours}</span>
-            <h3 className="app-timer__title">Hours</h3>
-          </li>
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-minutes">{minutes}</span>
-            <h3 className="app-timer__title">Minutes</h3>
-          </li>
-          <li className="app-timer__item">
-            <span className="app-timer__value js-timer-seconds">{seconds}</span>
-            <h3 className="app-timer__title">Seconds</h3>
-          </li>
-        </ul>
-      );
+      setReceivedAmount(e.target.value);
     }
   };
+
+  const handleBuy = async () => {
+    setLoading(true);
+    try {
+      await buy(paymentType, payAmount);
+    } catch (e) {
+      toast.error("Error in Buying");
+      console.log(e);
+    }
+    toast.success("Successfully bought");
+    setLoading(false);
+  };
+
+  console.log("payment type", paymentType === "BNB");
 
   return (
     <div className="landing-page flex flex-col">
@@ -98,13 +119,15 @@ const Main = () => {
                     </div>
                     <div className="token-price">PHASE 1 - 50,000,000</div>
                     <div className="token-numb-sec flex aic">
-                      <div className="numb">50,000,000</div>
+                      <div className="numb">{stat.contractBalance}</div>
                       <div className="lbl">Barkley'S REMAINING</div>
                     </div>
                   </div>
                 </div>
                 <>
-                  <HorizontalSlider />
+                  <HorizontalSlider
+                    value={100000000 - stat ? stat.contractBalance : 0}
+                  />
                 </>
               </div>
               <div className="right-side flex flex-col">
@@ -117,19 +140,46 @@ const Main = () => {
                         <div className="c-left flex">
                           <div className="token-items flex aic">
                             <div className="token-info flex flex-col aic">
-                              <img src="./images/icon5.png" className="icon" />
+                              <img
+                                src="./images/icon5.png"
+                                alt="BNB"
+                                className="icon"
+                              />
                               <div className="token-lbl">BNB</div>
-                              <input type="radio" className="radio-btn" />
+                              <input
+                                type="radio"
+                                className="radio-btn"
+                                checked={paymentType === "BNB"}
+                                onClick={() => handlePaymentTypeChnage("BNB")}
+                              />
                             </div>
                             <div className="token-info flex flex-col aic">
-                              <img src="./images/icon6.png" className="icon" />
+                              <img
+                                src="./images/icon6.png"
+                                className="icon"
+                                alt="BUSD"
+                              />
                               <div className="token-lbl">BUSD</div>
-                              <input type="radio" className="radio-btn" />
+                              <input
+                                type="radio"
+                                className="radio-btn"
+                                checked={paymentType === "BUSD"}
+                                onClick={() => handlePaymentTypeChnage("BUSD")}
+                              />
                             </div>
                             <div className="token-info flex flex-col aic">
-                              <img src="./images/icon7.png" className="icon" />
+                              <img
+                                src="./images/icon7.png"
+                                className="icon"
+                                alt="USDT"
+                              />
                               <div className="token-lbl">USDT</div>
-                              <input type="radio" className="radio-btn" />
+                              <input
+                                type="radio"
+                                className="radio-btn"
+                                checked={paymentType === "USDT"}
+                                onClick={() => handlePaymentTypeChnage("USDT")}
+                              />
                             </div>
                           </div>
                         </div>
@@ -140,6 +190,8 @@ const Main = () => {
                               type="number"
                               className="txt cleanbtn"
                               placeholder="AMOUNT"
+                              value={payAmount}
+                              onChange={handlePayAmountChange}
                               // value="000"
                             />
                           </div>
@@ -161,14 +213,27 @@ const Main = () => {
                               type="number"
                               className="txt cleanbtn"
                               placeholder="RECIEVED"
-                              value="000"
+                              value={receivedAmount}
                             />
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div className="btn button">CONVERTNOW</div>
+                  <div className="btn button" onClick={handleBuy}>
+                    {loading ? (
+                      <ClipLoader
+                        color={color}
+                        loading={loading}
+                        cssOverride={override}
+                        size={30}
+                        aria-label="Loading Spinner"
+                        data-testid="loader"
+                      />
+                    ) : (
+                      "CONVERT NOW"
+                    )}
+                  </div>
                 </div>
 
                 <div className="info-box flex flex-col">
@@ -179,7 +244,9 @@ const Main = () => {
                     </div>
                   </div>
                   <div className="flex justify-between">
-                    <div className="box-numb">123,945</div>
+                    <div className="box-numb">
+                      {isConnected ? stat.balanceInEth : 0}
+                    </div>
                   </div>
                 </div>
               </div>
